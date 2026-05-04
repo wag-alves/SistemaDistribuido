@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oracle Duel - Arena</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
+    <style>
+        body { min-height: 100vh; background: #0d0d1a; color: #e0d6c8; }
+        .navbar { background: #0d0d1a !important; border-bottom: 1px solid #2a2a4a; }
+        .navbar-item { color: #c8a96e !important; font-weight: 700; font-size: 1.2rem; letter-spacing: 3px; }
+        .hero-title { font-size: 3rem; font-weight: 900; letter-spacing: 6px; color: #c8a96e; text-shadow: 0 0 30px rgba(200,169,110,0.4); }
+        .box { background: #13132b; border: 1px solid #2a2a4a; border-radius: 12px; color: #e0d6c8; }
+        .box .label { color: #c8a96e; }
+        .box .input { background: #0d0d1a; border-color: #2a2a4a; color: #e0d6c8; }
+        .step-title { color: #c8a96e; font-weight: 700; letter-spacing: 2px; font-size: 0.85rem; text-transform: uppercase; border-bottom: 1px solid #2a2a4a; padding-bottom: 0.5rem; margin-bottom: 1rem; }
+        
+        .button.is-gold { background: linear-gradient(135deg, #c8a96e, #a07840); color: #0d0d1a; font-weight: 700; border: none; }
+        .button.is-gold:hover { background: linear-gradient(135deg, #dfc080, #c8a96e); }
+        
+        /* Slots de Duelo */
+        .card-slot { border: 2px dashed #2a2a4a; border-radius: 10px; padding: 1.5rem 1rem; text-align: center; background: #0d0d1a; min-height: 120px; }
+        .card-slot.filled { border-style: solid; border-color: #c8a96e; background: #1a1a2e; }
+        .card-slot.winner { border-color: #48c78e; background: #0a1f16; box-shadow: 0 0 15px rgba(72,199,142,0.3); }
+        .card-slot.loser { border-color: #f14668; background: #1f0a10; }
+        .card-emoji { font-size: 2.5rem; display: block; }
+        .card-name { color: #c8a96e; font-weight: 700; font-size: 1rem; }
+
+        /* Cartas Selecionáveis */
+        .selectable-card { 
+            cursor: pointer; transition: transform 0.2s, border-color 0.2s; 
+            border: 1px solid #2a2a4a; padding: 10px; border-radius: 8px; background: #1a1a2e;
+        }
+        .selectable-card:hover { transform: translateY(-5px); border-color: #c8a96e; background: #232344; }
+        .selectable-card.is-loading { opacity: 0.5; pointer-events: none; }
+
+        .status-badge { display: inline-block; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; }
+        .badge-waiting { background: #2a2a4a; color: #9090b0; }
+        .badge-progress { background: #1a3a1a; color: #48c78e; }
+        .badge-finished { background: #3a1a1a; color: #f14668; }
+
+        .notification-dark { background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 10px; color: #e0d6c8; padding: 1rem; }
+        .pulse { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="container">
+        <div class="navbar-brand"><span class="navbar-item">⚔️ JOGO DE CARTAS</span></div>
+    </div>
+</nav>
+
+<section class="section">
+    <div class="container">
+        <div class="has-text-centered mb-6">
+            <p class="hero-title">JOGO DE CARTAS</p>
+            <p class="is-size-7" style="color:#6060a0; letter-spacing:3px;">ESCOLHA SUA CARTA E VENÇA O DESTINO</p>
+        </div>
+
+        <div class="columns is-centered">
+            <div class="column is-7">
+
+                <!-- ETAPA 1: LOGIN -->
+                <div class="box" id="stepPlayer">
+                    <p class="step-title">① Identificação</p>
+                    <div class="field has-addons">
+                        <div class="control is-expanded">
+                            <input id="inputUsername" class="input" type="text" placeholder="Nome do duelista...">
+                        </div>
+                        <div class="control">
+                            <button id="btnCriarJogador" class="button is-gold">Entrar</button>
+                        </div>
+                    </div>
+                    <div id="playerInfo" class="notification-dark mt-3" style="display:none;">
+                        👤 <strong id="playerName" style="color:#c8a96e;"></strong>
+                        <span class="is-size-7 ml-3" style="color:#6060a0;">Lv. <span id="playerLevel"></span></span>
+                    </div>
+                </div>
+
+                <!-- ETAPA 2: BUSCAR PARTIDA -->
+                <div class="box" id="stepGame" style="display:none;">
+                    <p class="step-title">② Arena</p>
+                    <div class="columns">
+                        <div class="column">
+                            <button id="btnCriarPartida" class="button is-gold is-fullwidth">🏰 Criar Partida</button>
+                        </div>
+                        <div class="column">
+                            <div class="field has-addons">
+                                <div class="control is-expanded">
+                                    <input id="inputGameId" class="input" type="number" placeholder="ID da sala">
+                                </div>
+                                <div class="control">
+                                    <button id="btnEntrarPartida" class="button is-gold">Entrar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ARENA DE DUELO -->
+                <div class="box" id="arenaBox" style="display:none;">
+                    <div class="is-flex is-justify-content-space-between is-align-items-center mb-5">
+                        <span id="gameIdTag" class="tag is-dark is-medium">#—</span>
+                        <span id="statusBadge" class="status-badge badge-waiting">AGUARDANDO</span>
+                    </div>
+
+                    <div class="columns is-mobile is-vcentered mb-5">
+                        <div class="column">
+                            <div class="card-slot" id="myCardSlot">
+                                <div class="card-emoji">?</div>
+                                <div class="card-name">Você</div>
+                            </div>
+                        </div>
+                        <div class="column is-narrow has-text-centered">
+                            <div class="is-size-3 has-text-danger has-text-weight-bold">VS</div>
+                        </div>
+                        <div class="column">
+                            <div class="card-slot" id="enemyCardSlot">
+                                <div class="card-emoji">?</div>
+                                <div class="card-name">Oponente</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ÁREA DE SELEÇÃO DE CARTAS -->
+                    <div id="selectionArea" class="mb-4" style="display:none;">
+                        <p class="has-text-centered is-size-6 mb-3" style="color:#c8a96e">Escolha sua jogada:</p>
+                        <div class="columns is-multiline is-mobile is-centered" id="cardOptions">
+                            <!-- Inserido via JS -->
+                        </div>
+                    </div>
+
+                    <div id="resultBox" class="notification is-dark has-text-centered" style="display:none; border: 1px solid #c8a96e;">
+                        <p id="resultText" class="is-size-4 has-text-weight-bold"></p>
+                    </div>
+
+                    <div id="msgArea" class="notification-dark mb-4 has-text-centered" style="display:none;">
+                        <span id="msgText" class="pulse"></span>
+                    </div>
+
+                    <button onclick="resetArena()" class="button is-gold is-fullwidth" style="display:none;" id="btnNova">↩ Voltar ao Menu</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+    let myPlayer = null;
+    let currentGame = null;
+    let pollingTimer = null;
+    let jaJoguei = false;
+
+    const EMOJIS = { "Mago":"🧙","Dragão":"🐉","Cavaleiro":"⚔️","Fênix":"🔥","Arqueiro":"🏹","Lobo":"🐺","Goblin":"👺","Rato":"🐀" };
+
+    const api = async (path, method = 'GET', body = null) => {
+        const opts = { method, headers: { 'Content-Type': 'application/json' } };
+        if (body) opts.body = JSON.stringify(body);
+        const r = await fetch('/api' + path, opts);
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.erro || data.detail || "Erro na API");
+        return data;
+    };
+
+    // Renderiza as opções de cartas para o usuário clicar
+    function renderizarOpcoes() {
+        const container = document.getElementById('cardOptions');
+        container.innerHTML = '';
+        Object.keys(EMOJIS).forEach(nome => {
+            const col = document.createElement('div');
+            col.className = 'column is-3-tablet is-4-mobile';
+            col.innerHTML = `
+                <div class="selectable-card has-text-centered" onclick="jogarCarta('${nome}')">
+                    <span class="is-size-3 d-block">${EMOJIS[nome]}</span>
+                    <p class="is-size-7 has-text-weight-bold">${nome.toUpperCase()}</p>
+                </div>
+            `;
+            container.appendChild(col);
+        });
+    }
+
+    async function jogarCarta(nomeCarta) {
+        if (!currentGame || jaJoguei) return;
+        
+        // Feedback visual de carregamento
+        const cards = document.querySelectorAll('.selectable-card');
+        cards.forEach(c => c.classList.add('is-loading'));
+
+        try {
+            const result = await api(`/games/${currentGame.id}/jogar/`, 'POST', { 
+                player_id: myPlayer.id,
+                carta: nomeCarta // Enviando a carta escolhida
+            });
+            
+            jaJoguei = true;
+            document.getElementById('selectionArea').style.display = 'none';
+            
+            if (result.resultado) {
+                const game = await api(`/games/${currentGame.id}/`);
+                atualizarUI(game);
+            } else {
+                setMsg('Aguardando oponente...');
+                revelarCarta('myCardSlot', nomeCarta);
+            }
+        } catch (e) {
+            alert(e.message);
+            cards.forEach(c => c.classList.remove('is-loading'));
+        }
+    }
+
+    function setMsg(txt) {
+        const el = document.getElementById('msgArea');
+        document.getElementById('msgText').innerText = txt;
+        el.style.display = txt ? 'block' : 'none';
+    }
+
+    function setStatus(status) {
+        const el = document.getElementById('statusBadge');
+        const map = {
+            WAITING: ['AGUARDANDO', 'badge-waiting'],
+            IN_PROGRESS: ['DUELANDO', 'badge-progress'],
+            FINISHED: ['ENCERRADO', 'badge-finished'],
+        };
+        const [label, cls] = map[status] || ['—', 'badge-waiting'];
+        el.className = `status-badge ${cls}`;
+        el.innerText = label;
+    }
+
+    document.getElementById('btnCriarJogador').onclick = async () => {
+        const username = document.getElementById('inputUsername').value.trim();
+        if (!username) return alert('Digite seu nome!');
+        try {
+            const player = await api('/players/', 'POST', { username });
+            myPlayer = player;
+            document.getElementById('playerName').innerText = player.username;
+            document.getElementById('playerLevel').innerText = player.level;
+            document.getElementById('playerInfo').style.display = 'block';
+            document.getElementById('stepGame').style.display = 'block';
+            document.getElementById('stepPlayer').style.display = 'none';
+        } catch (e) { alert(e.message); }
+    };
+
+    document.getElementById('btnCriarPartida').onclick = async () => {
+        try {
+            const game = await api('/games/', 'POST', { player_one: myPlayer.id });
+            abrirArena(game);
+        } catch (e) { alert(e.message); }
+    };
+
+    document.getElementById('btnEntrarPartida').onclick = async () => {
+        const gid = document.getElementById('inputGameId').value;
+        try {
+            const game = await api(`/games/${gid}/entrar/`, 'POST', { player_two: myPlayer.id });
+            abrirArena(game);
+        } catch (e) { alert("Erro ao entrar: " + e.message); }
+    };
+
+    function abrirArena(game) {
+        currentGame = game;
+        jaJoguei = false;
+        document.getElementById('stepGame').style.display = 'none';
+        document.getElementById('arenaBox').style.display = 'block';
+        document.getElementById('gameIdTag').innerText = `SALA #${game.id}`;
+        renderizarOpcoes();
+        atualizarUI(game);
+        iniciarPolling(game.id);
+    }
+
+    function iniciarPolling(gameId) {
+        pararPolling();
+        pollingTimer = setInterval(async () => {
+            try {
+                const game = await api(`/games/${gameId}/`);
+                currentGame = game;
+                atualizarUI(game);
+                if (game.status === 'FINISHED') pararPolling();
+            } catch (e) { console.error(e); }
+        }, 2000);
+    }
+
+    function pararPolling() { clearInterval(pollingTimer); }
+
+    function atualizarUI(game) {
+        setStatus(game.status);
+        const isP1 = String(game.player_one) === String(myPlayer.id);
+
+        if (game.status === 'WAITING') {
+            setMsg(`Envie o ID ${game.id} para um amigo`);
+        }
+
+        if (game.status === 'IN_PROGRESS') {
+            const myMove = isP1 ? game.move_player_one : game.move_player_two;
+            const enemyMove = isP1 ? game.move_player_two : game.move_player_one;
+
+            if (!myMove && !jaJoguei) {
+                setMsg('');
+                document.getElementById('selectionArea').style.display = 'block';
+            } else {
+                document.getElementById('selectionArea').style.display = 'none';
+                if (!enemyMove) setMsg('Oponente está escolhendo...');
+            }
+            if (myMove) revelarCarta('myCardSlot', myMove);
+        }
+
+        if (game.status === 'FINISHED') {
+            document.getElementById('selectionArea').style.display = 'none';
+            document.getElementById('btnNova').style.display = 'block';
+            setMsg('');
+
+            const myMove = isP1 ? game.move_player_one : game.move_player_two;
+            const enemyMove = isP1 ? game.move_player_two : game.move_player_one;
+
+            revelarCarta('myCardSlot', myMove);
+            revelarCarta('enemyCardSlot', enemyMove);
+
+            const winnerId = game.winner;
+            let resTxt = "🤝 EMPATE";
+            if (winnerId) {
+                const venceu = String(winnerId) === String(myPlayer.id);
+                resTxt = venceu ? "🏆 VITÓRIA!" : "💀 DERROTA";
+                document.getElementById('myCardSlot').classList.add(venceu ? 'winner' : 'loser');
+                document.getElementById('enemyCardSlot').classList.add(venceu ? 'loser' : 'winner');
+            }
+            
+            const rb = document.getElementById('resultBox');
+            rb.style.display = 'block';
+            document.getElementById('resultText').innerText = resTxt;
+        }
+    }
+
+    function revelarCarta(slotId, nome) {
+        const slot = document.getElementById(slotId);
+        slot.classList.add('filled');
+        slot.innerHTML = `<span class="card-emoji">${EMOJIS[nome] || '❓'}</span><span class="card-name">${nome}</span>`;
+    }
+
+    function resetArena() {
+        location.reload(); // Forma mais segura de limpar todos os timers e estados
+    }
+</script>
+</body>
+</html>
